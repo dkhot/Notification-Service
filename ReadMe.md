@@ -1,29 +1,26 @@
 ﻿# Notification Service
 
-[![CI](https://github.com/<your-github-username>/Notification-Service/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-github-username>/Notification-Service/actions/workflows/ci.yml)
+[![CI](https://github.com/dkhot/Notification-Service/actions/workflows/ci.yml/badge.svg)](https://github.com/dkhot/Notification-Service/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com/)
 
-This repository contains a proof-of-concept Enterprise Notification Service built on .NET 10, following
-DDD / Clean Architecture. See [`CLAUDE.md`](CLAUDE.md) for the full layering rules and the
-`.claude/skills/ddd-check` skill for auditing/refactoring against them.
+Proof-of-concept Enterprise Notification Service built on .NET 10 with DDD / Clean Architecture,
+background workers, a SQL-backed queue, provider adapters, callback dispatching, retry behavior,
+Docker Compose, and unit tests.
 
-> Replace `<your-github-username>` in the badges above with your actual GitHub username/repo once pushed.
+## What This Demonstrates
 
-## Highlights
-
-- **Refactored, not vibe-coded**: the solution started as a non-compiling, layer-collapsed prototype
+- **Clean Architecture refactor**: the solution started as a non-compiling, layer-collapsed prototype
   (duplicate enums/DTOs across projects, a repository interface whose implementation used mismatched
-  types) and was rebuilt into an enforced DDD/Clean Architecture — see `CLAUDE.md` for the before/after.
+  types) and was rebuilt into an enforced DDD/Clean Architecture.
 - **Spec-driven**: scope and structure trace back to source `.docx` requirement/implementation documents,
   not ad hoc decisions — see [Spec-driven development](#spec-driven-development) below.
 - **Rich domain model**: `Callback.ScheduleRetry(...)` owns the exponential-backoff/max-attempts policy;
   `Notification` exposes behavior methods (`MarkSent`, `MarkFailed`, ...) instead of public setters.
 - **Application layer testable without a database**: use-case handlers depend only on repository/queue
   ports, so unit tests use plain in-memory fakes — no EF Core `InMemory` provider required.
-- **Self-auditing**: the `.claude/skills/ddd-check` skill greps the codebase for the exact anti-patterns
-  that caused the original collapse (anemic setters, EF Core leaking into Application, business logic in
-  a host), so the architecture doesn't quietly drift back.
+- **Production-shaped workflow**: HTTP intake, asynchronous processing, provider dispatch, callback
+  persistence, retry scheduling, health checks, Docker Compose, and CI.
 
 ## Spec-driven development
 
@@ -39,9 +36,9 @@ come from two source documents that remain the authority for scope and structure
   implements.
 
 Changing scope (new channels, new endpoints, retry/backoff policy, storage shape) starts by updating
-these documents, not by adding ad hoc code — the DDD layering in `CLAUDE.md` and `ddd-check` then keeps
-the implementation honest against them. When the two disagree with the running code, the docs win and the
-code is the thing to fix.
+these documents, not by adding ad hoc code. The architecture rules in
+[`docs/ArchitectureRules.md`](docs/ArchitectureRules.md) keep the implementation honest against them.
+When the two disagree with the running code, the docs win and the code is the thing to fix.
 
 ## Architecture
 
@@ -92,6 +89,8 @@ sequenceDiagram
     Dispatcher->>Webhook: POST callback payload
 ```
 
+See [`docs/ArchitectureRules.md`](docs/ArchitectureRules.md) for the project boundary rules.
+
 ## Projects
 
 - `Notification.Api` - Minimal HTTP API host. `POST /notifications` maps straight to the
@@ -117,17 +116,33 @@ sequenceDiagram
 - `Notification.Tests` - xUnit tests for Application handlers (using in-memory fakes of the Domain ports —
   no database needed) and Domain entity behavior (e.g. the `Callback` retry policy).
 
-## Running locally
+## Local Configuration
 
-> The SQL Server password baked into `appsettings.json`/`docker-compose.yml` (`Your_password123`) is a
-> local-dev-only placeholder — it's committed on purpose for a zero-friction clone-and-run experience, not
-> something to reuse anywhere real.
-
-1. Update the SQL Server connection string in `src/Notification.Api/appsettings.json`, `src/Notification.Worker/appsettings.json`, and `src/Callback.Dispatcher/appsettings.json` if needed.
-2. Start SQL Server locally or use Docker Compose:
+This repo does not commit real secrets. Docker Compose reads local values from `.env`, which you can create from the provided example:
 
 ```bash
-docker-compose up -d sqlserver
+cp .env.example .env
+```
+
+For local non-Docker runs, set the connection string through environment variables:
+
+```bash
+ConnectionStrings__NotificationDatabase="Server=localhost,1433;Database=NotificationService;User Id=sa;Password=<your-local-password>;TrustServerCertificate=True;"
+```
+
+On PowerShell:
+
+```powershell
+$env:ConnectionStrings__NotificationDatabase="Server=localhost,1433;Database=NotificationService;User Id=sa;Password=<your-local-password>;TrustServerCertificate=True;"
+```
+
+## Running Locally
+
+1. Create `.env` from `.env.example` and set `SA_PASSWORD`.
+2. Start SQL Server:
+
+```bash
+docker compose up -d sqlserver
 ```
 
 3. Run the API:
@@ -140,9 +155,36 @@ dotnet run --project src/Notification.Api/Notification.Api.csproj
 
 ```bash
 dotnet run --project src/Notification.Worker/Notification.Worker.csproj
-
 dotnet run --project src/Callback.Dispatcher/Callback.Dispatcher.csproj
 ```
+
+## API Example
+
+Submit a notification:
+
+```bash
+curl -X POST http://localhost:5000/notifications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messageId": "demo-001",
+    "sourceId": "inventory",
+    "eventType": "StockLow",
+    "channel": "email",
+    "recipient": "ops@example.com",
+    "subject": "Low stock alert",
+    "body": "SKU ABC-123 has dropped below threshold."
+  }'
+```
+
+Expected response:
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+The API returns `202 Accepted` after enqueueing the notification. The worker later processes it and the dispatcher posts a completion callback when callback configuration is available.
 
 ## Docker
 

@@ -18,6 +18,11 @@
 # Runtime output from the file-based Email/SMS providers
 storage/
 
+# Local environment overrides
+.env
+.env.*
+!.env.example
+
 # OS cruft
 .DS_Store
 Thumbs.db

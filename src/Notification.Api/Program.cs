@@ -16,7 +16,8 @@ builder.Host.UseSerilog((context, services, configuration) =>
         .Enrich.FromLogContext();
 });
 
-var connectionString = builder.Configuration.GetConnectionString("NotificationDatabase") ?? "Server=localhost,1433;Database=NotificationService;User Id=sa;Password=Your_password123;";
+var connectionString = builder.Configuration.GetConnectionString("NotificationDatabase")
+    ?? throw new InvalidOperationException("Connection string 'NotificationDatabase' is required.");
 
 builder.Services.AddNotificationApplication();
 builder.Services.AddNotificationInfrastructure(connectionString);
