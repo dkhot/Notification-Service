@@ -16,8 +16,8 @@ namespace Notification.Infrastructure.Extensions
             if (services == null) throw new ArgumentNullException(nameof(services));
             if (string.IsNullOrWhiteSpace(connectionString)) throw new ArgumentException("Connection string is required", nameof(connectionString));
 
-            services.AddDbContext<NotificationDbContext>(options => options.UseSqlServer(connectionString));
             services.AddDbContextFactory<NotificationDbContext>(options => options.UseSqlServer(connectionString));
+            services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<NotificationDbContext>>().CreateDbContext());
 
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<ICallbackRepository, CallbackRepository>();
