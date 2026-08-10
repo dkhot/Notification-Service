@@ -6,21 +6,13 @@ namespace Callback.Dispatcher
 {
     internal sealed class CallbackDispatcherWorker : BackgroundService
     {
-        private readonly IMessageQueue _queue;
-        private readonly IHandleNotificationCompletedHandler _completionHandler;
-        private readonly IDispatchPendingCallbackHandler _dispatchHandler;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<CallbackDispatcherWorker> _logger;
         private readonly TimeSpan _delay = TimeSpan.FromSeconds(1);
 
-        public CallbackDispatcherWorker(
-            IMessageQueue queue,
-            IHandleNotificationCompletedHandler completionHandler,
-            IDispatchPendingCallbackHandler dispatchHandler,
-            ILogger<CallbackDispatcherWorker> logger)
+        public CallbackDispatcherWorker(IServiceScopeFactory scopeFactory, ILogger<CallbackDispatcherWorker> logger)
         {
-            _queue = queue;
-            _completionHandler = completionHandler;
-            _dispatchHandler = dispatchHandler;
+            _scopeFactory = scopeFactory;
             _logger = logger;
         }
 
@@ -32,14 +24,19 @@ namespace Callback.Dispatcher
             {
                 try
                 {
-                    var message = await _queue.DequeueAsync<NotificationCompletedMessage>(stoppingToken);
+                    using var scope = _scopeFactory.CreateScope();
+                    var queue = scope.ServiceProvider.GetRequiredService<IMessageQueue>();
+                    var completionHandler = scope.ServiceProvider.GetRequiredService<IHandleNotificationCompletedHandler>();
+                    var dispatchHandler = scope.ServiceProvider.GetRequiredService<IDispatchPendingCallbackHandler>();
+
+                    var message = await queue.DequeueAsync<NotificationCompletedMessage>(stoppingToken);
                     if (message != null)
                     {
-                        await _completionHandler.HandleAsync(message.Payload, stoppingToken);
-                        await _queue.MarkProcessedAsync(message.Id, true, null, stoppingToken);
+                        await completionHandler.HandleAsync(message.Payload, stoppingToken);
+                        await queue.MarkProcessedAsync(message.Id, true, null, stoppingToken);
                     }
 
-                    await _dispatchHandler.DispatchNextAsync(stoppingToken);
+                    await dispatchHandler.DispatchNextAsync(stoppingToken);
                     await Task.Delay(_delay, stoppingToken);
                 }
                 catch (TaskCanceledException)
