@@ -1,7 +1,6 @@
 ---
 name: ddd-check
-description: Audit or refactor the Notification Service .NET solution against its DDD/Clean Architecture layering (SharedKernel -> Domain -> Application -> Infrastructure -> hosts). Use when the user asks to check/verify/audit architecture boundaries in this repo, when planning further refactoring toward this structure, or when new code needs to be placed in the right project. Source of truth: docs/Specification.docx and docs/ImplementationPlan.docx, and the 2026-08 refactor that took the solution from a non-compiling, layer-collapsed state to this structure.
-
+description: "Audit or refactor the Notification Service .NET solution against its DDD/Clean Architecture layering (SharedKernel -> Domain -> Application -> Infrastructure -> hosts). Use when the user asks to check/verify/audit architecture boundaries in this repo, when planning further refactoring toward this structure, or when new code needs to be placed in the right project. Source of truth: docs/Specification.docx and docs/ImplementationPlan.docx, and the 2026-08 refactor that took the solution from a non-compiling, layer-collapsed state to this structure."
 ---
 
 # ddd-check — Notification Service architecture guardrail
